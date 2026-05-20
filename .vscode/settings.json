@@ -1,0 +1,6 @@
+{
+    "cmake.configureOnOpen": false,
+    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
+    "cmake.buildType": "Debug",
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
+}
