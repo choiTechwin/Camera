@@ -1,0 +1,33 @@
+최종 원인 분석
+증상
+카메라 열기 성공 (/dev/video* 존재, isOpened() true)
+창 표시 성공 (WSLg 정상)
+프레임이 검은색 → 데이터 수신 실패
+근본 원인: USB/IP의 isochronous 전송 한계
+
+웹캠 USB 전송 방식: Isochronous (등시성)
+  - 실시간 보장, 재전송 없음, 타이밍 중요
+
+USB/IP 전송 경로:
+  카메라 → Windows USB → TCP/IP → WSL2 vhci_hcd → /dev/video*
+               ↑ 문제 구간: TCP 지연/손실이 발생하면 프레임 데이터 유실
+isochronous 전송은 TCP/IP 위에서 타이밍 보장이 불가능합니다. 카메라는 연결되어 보이지만 실제 영상 데이터 패킷이 WSL 커널까지 온전히 도달하지 못합니다. OpenCV 재설치, 포맷 변경으로는 해결 불가능한 구조적 한계입니다.
+
+해결책 3가지 (현실적 순서)
+1. Windows에서 직접 실행 (가장 확실, 이미 동작 확인됨)
+
+CameraWin 프로젝트가 이미 정상 동작 중
+→ WSL 대신 Windows에서 개발/실행
+2. Named Pipe / TCP 소켓으로 프레임 공유
+
+[Windows 헬퍼] 카메라 캡처 → TCP 소켓으로 전송
+[WSL CameraApp] TCP 소켓에서 프레임 수신 → 처리/표시
+Windows와 WSL 양쪽에 코드 필요. 구현 복잡도 높음.
+
+3. Windows에서 RTSP 스트림 → WSL에서 수신
+
+Windows: OBS 또는 FFmpeg으로 카메라를 RTSP 스트림으로 내보내기
+WSL: cv::VideoCapture("rtsp://localhost:8554/...") 로 수신
+별도 스트리밍 소프트웨어 필요.
+
+권장: 현재 목표가 카메라 영상 처리 기능 개발이라면 **방법 1(Windows 직접 실행)**이 가장 현실적입니다. 어떤 방향으로 진행하시겠습니까?
