@@ -10,19 +10,24 @@
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
             "environment": [
-                {
-                    "name": "DEBUGINFOD_URLS",
-                    "value": ""
-                }
+                {"name": "DEBUGINFOD_URLS",       "value": ""},
+                {"name": "LD_LIBRARY_PATH",        "value": ""},
+                {"name": "LD_PRELOAD",             "value": ""},
+                {"name": "GIO_MODULE_DIR",         "value": ""},
+                {"name": "GDK_PIXBUF_MODULE_FILE", "value": ""},
+                {"name": "GDK_PIXBUF_MODULEDIR",   "value": ""},
+                {"name": "GTK_PATH",               "value": ""},
+                {"name": "GTK_EXE_PREFIX",         "value": ""},
+                {"name": "GTK_IM_MODULE_FILE",     "value": ""},
+                {"name": "GSETTINGS_SCHEMA_DIR",   "value": ""},
+                {"name": "LOCPATH",                "value": ""},
+                {"name": "SNAP_LIBRARY_PATH",      "value": ""}
             ],
             "externalConsole": false,
             "internalConsoleOptions": "openOnSessionStart",
             "MIMode": "gdb",
             "miDebuggerPath": "${workspaceFolder}/.vscode/gdb-wrapper.sh",
             "targetArchitecture": "x64",
-            "sourceFileMap": {
-                "/home/choisw/camera": "${workspaceFolder}"
-            },
             "preLaunchTask": "CMake Build Debug",
             "setupCommands": [
                 {
@@ -34,7 +39,18 @@
                     "description": "Confirm debuginfod is disabled",
                     "text": "-gdb-show debuginfod enabled",
                     "ignoreFailures": true
-                }
+                },
+                {"description": "snap: clear LD_LIBRARY_PATH",        "text": "unset environment LD_LIBRARY_PATH",        "ignoreFailures": true},
+                {"description": "snap: clear LD_PRELOAD",             "text": "unset environment LD_PRELOAD",             "ignoreFailures": true},
+                {"description": "snap: clear GIO_MODULE_DIR",         "text": "unset environment GIO_MODULE_DIR",         "ignoreFailures": true},
+                {"description": "snap: clear GDK_PIXBUF_MODULE_FILE", "text": "unset environment GDK_PIXBUF_MODULE_FILE", "ignoreFailures": true},
+                {"description": "snap: clear GDK_PIXBUF_MODULEDIR",   "text": "unset environment GDK_PIXBUF_MODULEDIR",   "ignoreFailures": true},
+                {"description": "snap: clear GTK_PATH",               "text": "unset environment GTK_PATH",               "ignoreFailures": true},
+                {"description": "snap: clear GTK_EXE_PREFIX",         "text": "unset environment GTK_EXE_PREFIX",         "ignoreFailures": true},
+                {"description": "snap: clear GTK_IM_MODULE_FILE",     "text": "unset environment GTK_IM_MODULE_FILE",     "ignoreFailures": true},
+                {"description": "snap: clear GSETTINGS_SCHEMA_DIR",   "text": "unset environment GSETTINGS_SCHEMA_DIR",   "ignoreFailures": true},
+                {"description": "snap: clear LOCPATH",                "text": "unset environment LOCPATH",                "ignoreFailures": true},
+                {"description": "snap: clear SNAP_LIBRARY_PATH",      "text": "unset environment SNAP_LIBRARY_PATH",      "ignoreFailures": true}
             ],
             "logging": {
                 "engineLogging": true,
@@ -48,15 +64,39 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/Release/CameraApp",
             "args": [],
-            "noDebug": true,
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {"name": "LD_LIBRARY_PATH",        "value": ""},
+                {"name": "LD_PRELOAD",             "value": ""},
+                {"name": "GIO_MODULE_DIR",         "value": ""},
+                {"name": "GDK_PIXBUF_MODULE_FILE", "value": ""},
+                {"name": "GDK_PIXBUF_MODULEDIR",   "value": ""},
+                {"name": "GTK_PATH",               "value": ""},
+                {"name": "GTK_EXE_PREFIX",         "value": ""},
+                {"name": "GTK_IM_MODULE_FILE",     "value": ""},
+                {"name": "GSETTINGS_SCHEMA_DIR",   "value": ""},
+                {"name": "LOCPATH",                "value": ""},
+                {"name": "SNAP_LIBRARY_PATH",      "value": ""}
+            ],
             "externalConsole": false,
             "internalConsoleOptions": "openOnSessionStart",
             "MIMode": "gdb",
-            "miDebuggerPath": "/usr/bin/gdb",
-            "preLaunchTask": "CMake Build Release"
+            "miDebuggerPath": "${workspaceFolder}/.vscode/gdb-wrapper.sh",
+            "preLaunchTask": "CMake Build Release",
+            "setupCommands": [
+                {"description": "snap: clear LD_LIBRARY_PATH",        "text": "unset environment LD_LIBRARY_PATH",        "ignoreFailures": true},
+                {"description": "snap: clear LD_PRELOAD",             "text": "unset environment LD_PRELOAD",             "ignoreFailures": true},
+                {"description": "snap: clear GIO_MODULE_DIR",         "text": "unset environment GIO_MODULE_DIR",         "ignoreFailures": true},
+                {"description": "snap: clear GDK_PIXBUF_MODULE_FILE", "text": "unset environment GDK_PIXBUF_MODULE_FILE", "ignoreFailures": true},
+                {"description": "snap: clear GDK_PIXBUF_MODULEDIR",   "text": "unset environment GDK_PIXBUF_MODULEDIR",   "ignoreFailures": true},
+                {"description": "snap: clear GTK_PATH",               "text": "unset environment GTK_PATH",               "ignoreFailures": true},
+                {"description": "snap: clear GTK_EXE_PREFIX",         "text": "unset environment GTK_EXE_PREFIX",         "ignoreFailures": true},
+                {"description": "snap: clear GTK_IM_MODULE_FILE",     "text": "unset environment GTK_IM_MODULE_FILE",     "ignoreFailures": true},
+                {"description": "snap: clear GSETTINGS_SCHEMA_DIR",   "text": "unset environment GSETTINGS_SCHEMA_DIR",   "ignoreFailures": true},
+                {"description": "snap: clear LOCPATH",                "text": "unset environment LOCPATH",                "ignoreFailures": true},
+                {"description": "snap: clear SNAP_LIBRARY_PATH",      "text": "unset environment SNAP_LIBRARY_PATH",      "ignoreFailures": true}
+            ]
         }
     ]
 }

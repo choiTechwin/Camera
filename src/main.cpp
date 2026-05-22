@@ -18,7 +18,7 @@ static void sigHandler(int) { g_running = false; }
 namespace {
 
 struct AppConfig {
-    int cameraIndex = 0;
+    int cameraIndex = 48;
     int width = 1280;
     int height = 720;
     double motionThreshold = 0.018;

@@ -45,7 +45,8 @@
         {
             "label": "Run Debug",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Debug/CameraApp",
+            "command": "${workspaceFolder}/.vscode/run-wrapper.sh",
+            "args": ["${workspaceFolder}/build/Debug/CameraApp"],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
@@ -94,7 +95,8 @@
         {
             "label": "Run Release",
             "type": "shell",
-            "command": "${workspaceFolder}/build/Release/CameraApp",
+            "command": "${workspaceFolder}/.vscode/run-wrapper.sh",
+            "args": ["${workspaceFolder}/build/Release/CameraApp"],
             "options": {
                 "cwd": "${workspaceFolder}"
             },
