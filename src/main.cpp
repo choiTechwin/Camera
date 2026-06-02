@@ -5,6 +5,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <exception>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -12,27 +13,67 @@
 #include <string>
 #include <vector>
 
+#include <sys/stat.h>
+
 static std::atomic<bool> g_running{true};
 static void sigHandler(int) { g_running = false; }
 
 namespace {
 
 struct AppConfig {
-    int cameraIndex = 48;
-    int width = 1280;
-    int height = 720;
+    int cameraIndex = -1;
+    int width = 640;
+    int height = 480;
     double motionThreshold = 0.018;
+    std::string sourceUrl;
 };
 
-struct CameraBackend {
-    int api;
+struct CameraMode {
+    int width;
+    int height;
+    double fps;
+    int fourcc;
     const char* name;
 };
 
-const std::vector<CameraBackend> kCameraBackends = {
-    {cv::CAP_V4L2, "V4L2"},
-    {cv::CAP_ANY,  "Auto"}
+const std::vector<CameraMode> kCameraModes = {
+    {320,  240, 15, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), "320x240 MJPG 15fps"},
+    {320,  240, 15, cv::VideoWriter::fourcc('Y', 'U', 'Y', 'V'), "320x240 YUYV 15fps"},
+    {640,  480, 15, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), "640x480 MJPG 15fps"},
+    {640,  480, 15, cv::VideoWriter::fourcc('Y', 'U', 'Y', 'V'), "640x480 YUYV 15fps"},
+    {1280, 720, 15, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), "1280x720 MJPG 15fps"},
+    {1280, 720, 30, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), "1280x720 MJPG 30fps"}
 };
+
+bool videoDeviceExists(int index) {
+    const std::string path = "/dev/video" + std::to_string(index);
+    struct stat info {};
+    return stat(path.c_str(), &info) == 0 && S_ISCHR(info.st_mode);
+}
+
+std::vector<int> cameraCandidates(const AppConfig& config) {
+    if (config.cameraIndex >= 0) {
+        return {config.cameraIndex};
+    }
+
+    std::vector<int> candidates;
+    for (int index = 0; index <= 63; ++index) {
+        if (videoDeviceExists(index)) {
+            candidates.push_back(index);
+        }
+    }
+    return candidates;
+}
+
+std::string videoDevicePath(int index) {
+    return "/dev/video" + std::to_string(index);
+}
+
+bool looksLikeStreamUrl(const std::string& value) {
+    return value.rfind("http://", 0) == 0 ||
+           value.rfind("https://", 0) == 0 ||
+           value.rfind("rtsp://", 0) == 0;
+}
 
 void logLine(const std::string& text) {
     std::ofstream log("camera_wsl.log", std::ios::app);
@@ -111,25 +152,65 @@ void printHelp() {
         << "  s       : save current frame as capture.png\n";
 }
 
-bool openCamera(cv::VideoCapture& camera, const AppConfig& config, std::string& backendName) {
-    for (const auto& backend : kCameraBackends) {
-        std::cout << "Opening camera index " << config.cameraIndex
-                  << " with " << backend.name << "...\n";
-
-        camera.open(config.cameraIndex, backend.api);
+bool openCamera(cv::VideoCapture& camera, AppConfig& config, std::string& backendName) {
+    if (!config.sourceUrl.empty()) {
+        std::cout << "Opening stream URL " << config.sourceUrl << "...\n";
+        camera.open(config.sourceUrl, cv::CAP_ANY);
         if (!camera.isOpened()) {
-            camera.release();
-            continue;
+            return false;
         }
 
-        camera.set(cv::CAP_PROP_FRAME_WIDTH, config.width);
-        camera.set(cv::CAP_PROP_FRAME_HEIGHT, config.height);
-        camera.set(cv::CAP_PROP_FPS, 30);
-        camera.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
         camera.set(cv::CAP_PROP_BUFFERSIZE, 1);
 
-        backendName = backend.name;
+        cv::Mat probeFrame;
+        camera.read(probeFrame);
+        if (probeFrame.empty()) {
+            std::cerr << "Stream opened but returned no frame.\n";
+            camera.release();
+            return false;
+        }
+
+        config.width = probeFrame.cols;
+        config.height = probeFrame.rows;
+        backendName = "stream URL";
         return true;
+    }
+
+    for (const int index : cameraCandidates(config)) {
+        const std::string devicePath = videoDevicePath(index);
+        for (const auto& mode : kCameraModes) {
+            std::cout << "Opening " << devicePath
+                      << " with V4L2"
+                      << " (" << mode.name << ")...\n";
+
+            camera.open(devicePath, cv::CAP_V4L2);
+            if (!camera.isOpened()) {
+                camera.release();
+                continue;
+            }
+
+            camera.set(cv::CAP_PROP_FOURCC, mode.fourcc);
+            camera.set(cv::CAP_PROP_FRAME_WIDTH, mode.width);
+            camera.set(cv::CAP_PROP_FRAME_HEIGHT, mode.height);
+            camera.set(cv::CAP_PROP_FPS, mode.fps);
+            camera.set(cv::CAP_PROP_BUFFERSIZE, 1);
+
+            cv::Mat probeFrame;
+            camera.read(probeFrame);
+
+            if (probeFrame.empty()) {
+                std::cerr << devicePath << " opened with " << mode.name
+                          << " but returned no frame.\n";
+                camera.release();
+                continue;
+            }
+
+            config.cameraIndex = index;
+            config.width = probeFrame.cols;
+            config.height = probeFrame.rows;
+            backendName = std::string("V4L2 ") + mode.name;
+            return true;
+        }
     }
 
     return false;
@@ -144,23 +225,43 @@ int main(int argc, char** argv) {
     logLine("camera_wsl start");
     AppConfig config;
     if (argc > 1) {
-        config.cameraIndex = std::stoi(argv[1]);
+        const std::string cameraArg = argv[1];
+        if (looksLikeStreamUrl(cameraArg)) {
+            config.sourceUrl = cameraArg;
+        } else if (cameraArg != "auto") {
+            try {
+                config.cameraIndex = std::stoi(cameraArg);
+            } catch (const std::exception&) {
+                std::cerr << "Invalid camera source: " << cameraArg << "\n";
+                std::cerr << "Use a numeric index like 0, auto, or a URL like http://host:port/video\n";
+                return 1;
+            }
+        }
     }
 
     cv::VideoCapture camera;
     std::string backendName;
     if (!openCamera(camera, config, backendName)) {
         logLine("failed to open camera");
-        std::cerr << "Failed to open camera index " << config.cameraIndex << ".\n";
-        std::cerr << "Try another index, for example: ./CameraApp 1\n";
+        if (config.cameraIndex >= 0) {
+            std::cerr << "Failed to open camera index " << config.cameraIndex << ".\n";
+            std::cerr << "Try auto detection: ./CameraApp auto\n";
+        } else if (!config.sourceUrl.empty()) {
+            std::cerr << "Failed to open stream URL: " << config.sourceUrl << "\n";
+            std::cerr << "Check that the Windows streaming app is running and reachable from WSL.\n";
+        } else {
+            std::cerr << "Failed to open any camera index.\n";
+            std::cerr << "Try a specific index, for example: ./CameraApp 0\n";
+        }
         std::cerr << "Check /dev/video* devices and usbipd-win attachment.\n";
         return 1;
     }
     logLine("camera opened with " + backendName);
 
     printHelp();
-    std::cout << "Format: MJPG  requested size: " << config.width << "x" << config.height
-              << "  camera index: " << config.cameraIndex
+    std::cout << "Input size: " << config.width << "x" << config.height
+              << "  source: "
+              << (config.sourceUrl.empty() ? videoDevicePath(config.cameraIndex) : config.sourceUrl)
               << "  backend: " << backendName << "\n";
 
     const char* display = std::getenv("DISPLAY");
