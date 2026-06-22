@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,7 @@ struct AppConfig {
     int height = 480;
     double motionThreshold = 0.018;
     std::string sourceUrl;
+    std::string streamBaseUrl = "http://192.168.45.33:5000/video_feed/";
 };
 
 struct CameraMode {
@@ -73,6 +75,71 @@ bool looksLikeStreamUrl(const std::string& value) {
     return value.rfind("http://", 0) == 0 ||
            value.rfind("https://", 0) == 0 ||
            value.rfind("rtsp://", 0) == 0;
+}
+
+bool parseNonNegativeInt(const std::string& value, int& number) {
+    try {
+        size_t parsed = 0;
+        const int parsedNumber = std::stoi(value, &parsed);
+        if (parsed != value.size() || parsedNumber < 0) {
+            return false;
+        }
+        number = parsedNumber;
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+void configureSourceFromInput(AppConfig& config, const std::string& input, bool preferStreamIndex) {
+    if (input.empty() || input == "stream") {
+        config.sourceUrl = config.streamBaseUrl + "1";
+        return;
+    }
+    if (looksLikeStreamUrl(input)) {
+        config.sourceUrl = input;
+        return;
+    }
+    if (input == "auto") {
+        return;
+    }
+
+    int index = -1;
+    if (parseNonNegativeInt(input, index)) {
+        if (preferStreamIndex) {
+            config.sourceUrl = config.streamBaseUrl + std::to_string(index);
+        } else {
+            config.cameraIndex = index;
+        }
+        return;
+    }
+
+    throw std::invalid_argument("invalid camera source");
+}
+
+bool promptForCameraSource(AppConfig& config) {
+    std::cout
+        << "Camera source input\n"
+        << "  0,1,2.. : Windows stream camera ID\n"
+        << "  stream  : Windows stream camera ID 1\n"
+        << "  auto    : local /dev/video* auto detection\n"
+        << "  URL     : http://... or rtsp://...\n"
+        << "Select source [stream]: "
+        << std::flush;
+
+    std::string input;
+    if (!std::getline(std::cin, input)) {
+        return false;
+    }
+
+    try {
+        configureSourceFromInput(config, input, true);
+    } catch (const std::exception&) {
+        std::cerr << "Invalid camera source: " << input << "\n";
+        return false;
+    }
+
+    return true;
 }
 
 void logLine(const std::string& text) {
@@ -152,6 +219,14 @@ void printHelp() {
         << "  s       : save current frame as capture.png\n";
 }
 
+bool isWindowOpen(const std::string& windowName) {
+    try {
+        return cv::getWindowProperty(windowName, cv::WND_PROP_VISIBLE) >= 1;
+    } catch (const cv::Exception&) {
+        return false;
+    }
+}
+
 bool openCamera(cv::VideoCapture& camera, AppConfig& config, std::string& backendName) {
     if (!config.sourceUrl.empty()) {
         std::cout << "Opening stream URL " << config.sourceUrl << "...\n";
@@ -226,17 +301,15 @@ int main(int argc, char** argv) {
     AppConfig config;
     if (argc > 1) {
         const std::string cameraArg = argv[1];
-        if (looksLikeStreamUrl(cameraArg)) {
-            config.sourceUrl = cameraArg;
-        } else if (cameraArg != "auto") {
-            try {
-                config.cameraIndex = std::stoi(cameraArg);
-            } catch (const std::exception&) {
-                std::cerr << "Invalid camera source: " << cameraArg << "\n";
-                std::cerr << "Use a numeric index like 0, auto, or a URL like http://host:port/video\n";
-                return 1;
-            }
+        try {
+            configureSourceFromInput(config, cameraArg, false);
+        } catch (const std::exception&) {
+            std::cerr << "Invalid camera source: " << cameraArg << "\n";
+            std::cerr << "Use a numeric index like 0, auto, stream, or a URL like http://host:port/video\n";
+            return 1;
         }
+    } else if (!promptForCameraSource(config)) {
+        return 1;
     }
 
     cv::VideoCapture camera;
@@ -327,8 +400,13 @@ int main(int argc, char** argv) {
         drawLabel(frame, makeStatusText(fps, frame.size(), motionEnabled, motionRatio), {20, 32});
         cv::imshow(windowName, frame);
 
-        const int key = cv::waitKey(1);
+        const int key = cv::waitKey(10);
+        if (!isWindowOpen(windowName)) {
+            g_running = false;
+            break;
+        }
         if (key == 27 || key == 'q' || key == 'Q') {
+            g_running = false;
             break;
         }
         if (key == 'm' || key == 'M') {
@@ -339,6 +417,9 @@ int main(int argc, char** argv) {
             std::cout << "Saved capture.png\n";
         }
     }
+
+    camera.release();
+    cv::destroyAllWindows();
 
     return 0;
 }
